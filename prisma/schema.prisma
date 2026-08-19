@@ -1,0 +1,12 @@
+// P4.AI — Prisma schema
+// Datasource: Turso (libSQL). Models are added in P1-BE-2.
+// Do NOT add models in this task (P1-BE-1 scaffold only).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
