@@ -1,6 +1,7 @@
 // P4.AI — Prisma schema
-// Datasource: Turso (libSQL). Models are added in P1-BE-2.
-// Do NOT add models in this task (P1-BE-1 scaffold only).
+// Datasource: Turso (libSQL). Full schema with all 14 models (P1-BE-2).
+// Constraint #12: progress status only moves forward (enforced in app layer).
+// Constraint #13: ActivityLog is append-only (no update/delete API exposed).
 
 generator client {
   provider = "prisma-client-js"
@@ -9,4 +10,257 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  SECRETARY
+  STUDENT
+}
+
+enum Priority {
+  URGENT
+  PENTING
+  NORMAL
+}
+
+enum WeekType {
+  A
+  B
+}
+
+enum AssignmentType {
+  INDIVIDUAL
+  GROUP
+}
+
+enum AttendanceStatus {
+  HADIR
+  SAKIT
+  IZIN
+  ALFA
+}
+
+enum MilestoneType {
+  PTS
+  PAS
+  PRAKERIN
+  UJIAN
+  LIBUR
+  OTHER
+}
+
+enum ProgressStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum Source {
+  WEB
+  WHATSAPP
+  ADMIN
+  SYSTEM
+}
+
+enum ActivityEventType {
+  TASK_ASSIGNED
+  TASK_STARTED
+  TASK_COMPLETED
+  TASK_OVERDUE
+  REMINDER_SENT
+  STATUS_UPDATED_VIA_WHATSAPP
+}
+
+enum ReminderType {
+  T_MINUS_3_DAYS
+  T_MINUS_1_DAY
+  T_MINUS_6_HOURS
+}
+
+// ---------------------------------------------------------------------------
+// Models (14)
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  nis            String    @unique
+  passwordHash   String
+  role           Role      @default(STUDENT)
+  whatsappNumber String    @unique
+  birthday       DateTime?
+  createdAt      DateTime  @default(now())
+
+  announcements Announcement[]
+  assignments   Assignment[]
+  attendances   Attendance[]
+  chatSessions  ChatSession[]
+  progress      AssignmentProgress[]
+  activityLogs  ActivityLog[]
+  reminderLogs  ReminderLog[]
+}
+
+model Announcement {
+  id        String    @id @default(cuid())
+  title     String
+  content   String
+  priority  Priority  @default(NORMAL)
+  expiresAt DateTime?
+  authorId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Schedule {
+  id        String    @id @default(cuid())
+  dayOfWeek String
+  weekType  WeekType?
+  subject   String
+  teacher   String?
+  startTime String
+  endTime   String
+  room      String?
+  createdAt DateTime  @default(now())
+}
+
+model Assignment {
+  id               String         @id @default(cuid())
+  title            String
+  subject          String
+  description      String
+  deadline         DateTime
+  type             AssignmentType
+  submissionFormat String?
+  criteria         String?
+  reference        String?
+  knowledgeBase    Json
+  createdById      String
+  createdAt        DateTime       @default(now())
+
+  createdBy      User                      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  clarifications AssignmentClarification[]
+  progress       AssignmentProgress[]
+  activityLogs   ActivityLog[]
+  reminderLogs   ReminderLog[]
+}
+
+model AssignmentClarification {
+  id           String   @id @default(cuid())
+  assignmentId String
+  question     String
+  answer       String
+  createdAt    DateTime @default(now())
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  userId    String
+  date      DateTime
+  status    AttendanceStatus @default(HADIR)
+  notes     String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model Milestone {
+  id        String        @id @default(cuid())
+  title     String
+  type      MilestoneType
+  date      DateTime
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+}
+
+model BotSkill {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  prompt      String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model BotRule {
+  id        String   @id @default(cuid())
+  name      String
+  condition String
+  action    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  userId    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memories ChatMemory[]
+}
+
+model ChatMemory {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model AssignmentProgress {
+  id              String         @id @default(cuid())
+  assignmentId    String
+  userId          String
+  status          ProgressStatus @default(TODO)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  startedSource   Source?
+  completedSource Source?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, userId])
+}
+
+model ActivityLog {
+  id           String            @id @default(cuid())
+  userId       String
+  assignmentId String?
+  eventType    ActivityEventType
+  source       Source
+  metadata     Json
+  createdAt    DateTime          @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+}
+
+model ReminderLog {
+  id           String       @id @default(cuid())
+  userId       String
+  assignmentId String
+  reminderType ReminderType
+  sentAt       DateTime     @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assignmentId, reminderType])
 }
