@@ -5,23 +5,33 @@
 
 import DashboardGrid from "@/components/dashboard/DashboardGrid";
 import DashboardAutoRefresh from "@/components/dashboard/DashboardAutoRefresh";
+import { auth } from "@/lib/auth";
 import { getActiveMilestones } from "@/services/milestone";
 import { getTodaySchedule } from "@/services/schedule";
 import { getActiveAnnouncements } from "@/services/announcement";
 import { getTodaysBirthdays } from "@/services/user";
 import { computeClassMetrics } from "@/services/analytics";
+import { getStudentBadges } from "@/services/badges/compute";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  // Current user — used to load their earned badges.
+  const session = await auth();
+  const userId = session?.user?.id;
+
   // Fetch all data in parallel — each hits the DB once.
-  const [milestones, schedule, announcements, birthdays, classMetrics] = await Promise.all([
-    getActiveMilestones(),
-    getTodaySchedule(),
-    getActiveAnnouncements(),
-    getTodaysBirthdays(),
-    computeClassMetrics(),
-  ]);
+  const [milestones, schedule, announcements, birthdays, classMetrics] =
+    await Promise.all([
+      getActiveMilestones(),
+      getTodaySchedule(),
+      getActiveAnnouncements(),
+      getTodaysBirthdays(),
+      computeClassMetrics(),
+    ]);
+
+  // Student badges only make sense for a student viewing their own dashboard.
+  const studentBadges = userId ? await getStudentBadges(userId) : null;
 
   const taskProgress = {
     notStarted: classMetrics.notStarted,
@@ -48,6 +58,7 @@ export default async function DashboardPage() {
         birthdays={birthdays}
         taskProgress={taskProgress}
         dailyActivity={dailyActivity}
+        studentBadges={studentBadges}
       />
     </main>
   );
