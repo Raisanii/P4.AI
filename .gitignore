@@ -32,3 +32,6 @@ next-env.d.ts
 /prisma/*.db-journal
 *.db
 *.db-journal
+
+# Baileys WhatsApp session (auth keys + creds — never commit)
+/wa-session/
