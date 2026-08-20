@@ -4,9 +4,10 @@
 // NextAuth keeps the JWT cookie alive). When a custom wrapper is supplied,
 // NextAuth skips its own `authorized`-callback redirect, so this wrapper is
 // responsible for both:
-//   1. unauthenticated users  → /login (with callbackUrl)
-//   2. role-based landing (AUTH-07):
-//        SUPER_ADMIN → /admin, SECRETARY → /, STUDENT → /
+// 1. unauthenticated users → /login (with callbackUrl)
+// 2. role-based landing (AUTH-07):
+// SUPER_ADMIN → /admin, SECRETARY → /, STUDENT → /
+// 3. /analytics gated to SUPER_ADMIN + SECRETARY (students redirect to /)
 //
 // API routes are excluded from the matcher: they enforce auth + RBAC inside
 // their handlers (requireRole) so every endpoint returns an explicit 401/403
@@ -26,6 +27,11 @@ const ROLE_LANDING: Record<string, string> = {
   SECRETARY: "/",
   STUDENT: "/",
 };
+
+// Routes that require SUPER_ADMIN or SECRETARY (Permission Matrix §6).
+// Students are redirected to "/" (acceptance criterion: students must NOT
+// view analytics — §7.9).
+const ADMIN_ONLY_ROUTES = ["/analytics"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -53,6 +59,13 @@ export default auth((req) => {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // 4. Admin-only routes: students redirected to "/" (§7.9 analytics gating).
+  if (ADMIN_ONLY_ROUTES.some((r) => pathname.startsWith(r)) && role === "STUDENT") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

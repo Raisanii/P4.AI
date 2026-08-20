@@ -819,7 +819,6 @@ body {
  font-weight: 500;
 }
 
-/* ---- Skeleton loading placeholders (NFR-01) ---- */
 
 @keyframes skeleton-shimmer {
  0% {
@@ -971,4 +970,421 @@ body {
    max-width: 72rem;
    padding: 2rem 1.5rem;
  }
+}
+
+/* ---- Student task detail (STASK, §7.7) ---- */
+
+.task-detail-card {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 1.25rem;
+ display: flex;
+ flex-direction: column;
+ gap: 0.625rem;
+}
+
+.task-meta {
+ display: flex;
+ gap: 0.5rem;
+ font-size: 0.875rem;
+}
+
+.task-meta-label {
+ font-weight: 600;
+ color: var(--text-muted);
+ min-width: 7rem;
+}
+
+.task-meta-value {
+ color: var(--text);
+}
+
+.task-meta-overdue {
+ color: var(--danger);
+ font-weight: 600;
+}
+
+.task-description {
+ margin-top: 0.5rem;
+}
+
+.task-section-title {
+ font-size: 0.75rem;
+ font-weight: 700;
+ text-transform: uppercase;
+ letter-spacing: 0.025em;
+ color: var(--text-muted);
+ margin-bottom: 0.375rem;
+}
+
+.task-description-text {
+ font-size: 0.875rem;
+ line-height: 1.5;
+ color: var(--text);
+ white-space: pre-wrap;
+}
+
+/* ---- Progress badge ---- */
+
+.progress-badge {
+ display: inline-block;
+ font-size: 0.75rem;
+ font-weight: 700;
+ padding: 0.125rem 0.625rem;
+ border-radius: 999px;
+ white-space: nowrap;
+}
+
+.badge-todo {
+ background: var(--bg);
+ color: var(--text-muted);
+}
+
+.badge-in-progress {
+ background: #fef3c7;
+ color: #92400e;
+}
+
+.badge-done {
+ background: #dcfce7;
+ color: #166534;
+}
+
+.badge-overdue {
+ background: var(--danger-bg);
+ color: var(--danger);
+}
+
+/* ---- Task action panel ---- */
+
+.task-action-panel {
+ margin-top: 1rem;
+ padding-top: 1rem;
+ border-top: 1px solid var(--border);
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+}
+
+.task-status-row {
+ display: flex;
+ align-items: center;
+ gap: 0.5rem;
+}
+
+.task-status-label {
+ font-size: 0.875rem;
+ font-weight: 600;
+ color: var(--text-muted);
+}
+
+.task-timestamp {
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+}
+
+.task-duration {
+ font-size: 0.8125rem;
+ font-weight: 600;
+ color: var(--text);
+}
+
+.task-action-buttons {
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+ margin-top: 0.5rem;
+}
+
+.task-action-buttons .btn {
+ width: 100%;
+ padding: 0.75rem 1rem;
+ font-size: 0.9375rem;
+ font-weight: 700;
+}
+
+.task-done-message {
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+ font-style: italic;
+}
+
+/* ---- Task clarifications ---- */
+
+.task-clarifications {
+ margin-top: 1.25rem;
+}
+
+.clarification-list {
+ list-style: none;
+ display: flex;
+ flex-direction: column;
+ gap: 0.75rem;
+}
+
+.clarification-item {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 0.75rem;
+}
+
+.clarification-question {
+ font-size: 0.8125rem;
+ font-weight: 600;
+ margin-bottom: 0.25rem;
+}
+
+.clarification-answer {
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+ line-height: 1.4;
+}
+
+/* ---- Task back link ---- */
+
+.task-back {
+ margin-top: 1.25rem;
+}
+
+/* ---- Student task list ---- */
+
+.task-list-items {
+ list-style: none;
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+}
+
+.task-list-item {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 0.625rem;
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 0.75rem;
+ text-decoration: none;
+ color: var(--text);
+ transition: border-color 0.15s;
+}
+
+.task-list-item:hover {
+ border-color: var(--primary);
+}
+
+.task-list-item-main {
+ display: flex;
+ flex-direction: column;
+ gap: 0.125rem;
+ min-width: 0;
+}
+
+.task-list-item-title {
+ font-size: 0.9375rem;
+ font-weight: 600;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+
+.task-list-item-subject {
+ font-size: 0.75rem;
+ color: var(--text-muted);
+}
+
+.task-list-item-side {
+ display: flex;
+ flex-direction: column;
+ align-items: flex-end;
+ gap: 0.25rem;
+ flex-shrink: 0;
+}
+
+.task-list-item-deadline {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Analytics (§7.8 ACT, §7.9 ANALYTICS) ---- */
+
+.analytics-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 48rem) {
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.analytics-student-section {
+  margin-top: 1rem;
+}
+
+/* Progress bars (ProgressBar.tsx) */
+
+.progress-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.progress-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.progress-bar-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.progress-bar-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+.progress-bar-track {
+  height: 0.5rem;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-caption {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Activity list (ClassActivitySummary.tsx) */
+
+.activity-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0.75rem;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.activity-dot {
+  font-size: 0.875rem;
+}
+
+.activity-text {
+  flex: 1;
+}
+
+.activity-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Analytics stats list */
+
+.analytics-stats {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.analytics-stats li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.stat-label {
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-overdue {
+  color: var(--danger);
+}
+
+/* Data table (PerStudentTable.tsx, progress page) */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--text-muted);
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg);
+}
+
+.student-name {
+  font-weight: 600;
+}
+
+.student-nis {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.timestamp-cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Progress page extras */
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
 }
