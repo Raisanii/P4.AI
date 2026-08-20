@@ -188,3 +188,154 @@ body {
   max-width: 60rem;
   margin: 0 auto;
 }
+
+/* ---- Dashboard grid (DASH-11 mobile-first) ---- */
+
+.dash-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.dash-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .dash-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 64rem) {
+  .dash-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---- Widget slots ---- */
+
+.widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.widget-empty {
+  min-height: 6rem;
+  justify-content: center;
+}
+
+.widget-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.widget-empty-text {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.widget-spec {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+  align-self: flex-end;
+}
+
+/* ---- Widget internal lists ---- */
+
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+}
+
+.banner-urgent {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.banner-penting {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.banner-normal {
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.banner-priority {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.banner-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.milestone-list,
+.birthday-list,
+.task-list,
+.schedule-list,
+.attendance-list,
+.progress-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.milestone-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.milestone-type {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--primary);
+}
+
+.schedule-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.8125rem;
+}
+
+.schedule-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.task-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.task-progress {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
