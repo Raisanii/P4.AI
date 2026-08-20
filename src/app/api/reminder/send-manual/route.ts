@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import { sendReminders } from "@/services/reminder/sender";
+import { wasAlreadySent } from "@/services/reminder/dedup";
 import type { ReminderType, ProgressStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -84,36 +85,33 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build candidates, filtering out already-reminded (dedup).
+  // Build candidates, filtering out already-reminded (dedup). This is a
+  // read-only pre-filter; the authoritative atomic gate is claimReminder
+  // inside sendReminders (SUN-37).
   const candidates = [];
   const skipped = [];
   for (const row of progressRows) {
-    const existing = await prisma.reminderLog.findUnique({
-      where: {
-        userId_assignmentId_reminderType: {
-          userId: row.userId,
-          assignmentId,
-          reminderType,
-        },
-      },
-      select: { id: true },
-    });
+   const already = await wasAlreadySent({
+    userId: row.userId,
+    assignmentId,
+    reminderType,
+   });
 
-    if (existing) {
-      skipped.push(row.userId);
-      continue;
-    }
+   if (already) {
+    skipped.push(row.userId);
+    continue;
+   }
 
-    candidates.push({
-      userId: row.userId,
-      userName: row.user.name,
-      whatsappNumber: row.user.whatsappNumber,
-      assignmentId,
-      assignmentTitle: assignment.title,
-      deadline: assignment.deadline,
-      status: row.status,
-      reminderType,
-    });
+   candidates.push({
+    userId: row.userId,
+    userName: row.user.name,
+    whatsappNumber: row.user.whatsappNumber,
+    assignmentId,
+    assignmentTitle: assignment.title,
+    deadline: assignment.deadline,
+    status: row.status,
+    reminderType,
+   });
   }
 
   if (candidates.length === 0) {

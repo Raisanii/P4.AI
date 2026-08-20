@@ -7,10 +7,15 @@
 //
 // Also writes an ActivityLog entry (eventType REMINDER_SENT) per the PRD's
 // ActivityLog schema (§11.2) so reminders show up in analytics.
+//
+// Dedup is atomic (SUN-37): claimReminder inserts the ReminderLog row first.
+// If the unique constraint rejects a duplicate (P2002) the send is skipped
+// before any WhatsApp call — so concurrent scheduler ticks can't double-send.
 
 import { prisma } from "@/lib/db";
 import { sendText } from "@/services/whatsapp/sender";
 import { normalizeNumber } from "@/services/whatsapp/whitelist";
+import { claimReminder } from "@/services/reminder/dedup";
 import type { ReminderType } from "@prisma/client";
 import type { ReminderCandidate } from "@/services/reminder/engine";
 
@@ -44,66 +49,55 @@ export async function sendReminders(
   const results: SendResult[] = [];
 
   for (const candidate of candidates) {
-    try {
-      // Dedup via upsert — if the log row already exists, skip sending.
-      // This handles the race between two scheduler ticks cleanly.
-      const existing = await prisma.reminderLog.findUnique({
-        where: {
-          userId_assignmentId_reminderType: {
-            userId: candidate.userId,
-            assignmentId: candidate.assignmentId,
-            reminderType: candidate.reminderType,
-          },
-        },
-        select: { id: true },
-      });
+   try {
+    // Atomic dedup: claim the slot by inserting ReminderLog first. If a
+    // duplicate (P2002) is thrown, another tick already sent — skip before
+    // touching WhatsApp. This closes the TOCTOU window the old findUnique→
+    // send→create sequence had.
+    const claimed = await claimReminder({
+     userId: candidate.userId,
+     assignmentId: candidate.assignmentId,
+     reminderType: candidate.reminderType,
+    });
+    if (!claimed) {
+     results.push({ candidate, sent: false, error: "already_sent" });
+     continue;
+    }
 
-      if (existing) {
-        results.push({ candidate, sent: false, error: "already_sent" });
-        continue;
-      }
+    const message = TEMPLATES[candidate.reminderType](
+     candidate.userName,
+     candidate.assignmentTitle,
+    );
 
-      const message = TEMPLATES[candidate.reminderType](
-        candidate.userName,
-        candidate.assignmentTitle,
-      );
+    // Convert E.164 number to WhatsApp JID.
+    const jid = toJid(candidate.whatsappNumber);
+    if (!jid) {
+     results.push({ candidate, sent: false, error: "invalid_number" });
+     continue;
+    }
 
-      // Convert E.164 number to WhatsApp JID.
-      const jid = toJid(candidate.whatsappNumber);
-      if (!jid) {
-        results.push({ candidate, sent: false, error: "invalid_number" });
-        continue;
-      }
+    // Send after the claim — never before. A send failure still leaves the
+    // log row in place; the old code made the same "attempted at this
+    // offset" trade-off, just not race-safely.
+    // ponytail: skipped: retry-queue on socket-down; add when pm2+queue is wired.
+    const delivered = await sendText(jid, message);
 
-      const delivered = await sendText(jid, message);
+    // ActivityLog (§11.2) — REMINDER_SENT event for analytics.
+    await prisma.activityLog.create({
+     data: {
+      userId: candidate.userId,
+      assignmentId: candidate.assignmentId,
+      eventType: "REMINDER_SENT",
+      source: "SYSTEM",
+      metadata: {
+       reminderType: candidate.reminderType,
+       assignmentTitle: candidate.assignmentTitle,
+       delivered: delivered !== undefined,
+      },
+     },
+    });
 
-      // Log regardless of delivery — if the socket is down, we don't want to
-      // retry every tick. The reminder was "attempted" at this offset.
-      // ponytail: skipped: retry-queue on socket-down; add when pm2+queue is wired.
-      await prisma.reminderLog.create({
-        data: {
-          userId: candidate.userId,
-          assignmentId: candidate.assignmentId,
-          reminderType: candidate.reminderType,
-        },
-      });
-
-      // ActivityLog (§11.2) — REMINDER_SENT event for analytics.
-      await prisma.activityLog.create({
-        data: {
-          userId: candidate.userId,
-          assignmentId: candidate.assignmentId,
-          eventType: "REMINDER_SENT",
-          source: "SYSTEM",
-          metadata: {
-            reminderType: candidate.reminderType,
-            assignmentTitle: candidate.assignmentTitle,
-            delivered: delivered !== undefined,
-          },
-        },
-      });
-
-      results.push({ candidate, sent: delivered !== undefined });
+    results.push({ candidate, sent: delivered !== undefined });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[reminder] send failed", candidate.userId, candidate.assignmentId, msg);

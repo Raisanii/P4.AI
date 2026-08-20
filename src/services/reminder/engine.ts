@@ -12,6 +12,7 @@
 // scheduler doesn't even attempt already-sent reminders.
 
 import { prisma } from "@/lib/db";
+import { wasAlreadySent } from "@/services/reminder/dedup";
 import type { ReminderType, ProgressStatus } from "@prisma/client";
 
 /** Hours before deadline each reminder type fires. */
@@ -78,29 +79,25 @@ export async function getReminderCandidates(
   const candidates: ReminderCandidate[] = [];
 
   for (const row of rows) {
-    // Check if already reminded for this type.
-    const already = await prisma.reminderLog.findUnique({
-      where: {
-        userId_assignmentId_reminderType: {
-          userId: row.userId,
-          assignmentId: row.assignmentId,
-          reminderType,
-        },
-      },
-      select: { id: true },
-    });
-    if (already) continue;
+   // Read-only pre-filter; the authoritative atomic gate is claimReminder
+   // inside sendReminders (SUN-37).
+   const already = await wasAlreadySent({
+    userId: row.userId,
+    assignmentId: row.assignmentId,
+    reminderType,
+   });
+   if (already) continue;
 
-    candidates.push({
-      userId: row.userId,
-      userName: row.user.name,
-      whatsappNumber: row.user.whatsappNumber,
-      assignmentId: row.assignmentId,
-      assignmentTitle: row.assignment.title,
-      deadline: row.assignment.deadline,
-      status: row.status,
-      reminderType,
-    });
+   candidates.push({
+    userId: row.userId,
+    userName: row.user.name,
+    whatsappNumber: row.user.whatsappNumber,
+    assignmentId: row.assignmentId,
+    assignmentTitle: row.assignment.title,
+    deadline: row.assignment.deadline,
+    status: row.status,
+    reminderType,
+   });
   }
 
   return candidates;
