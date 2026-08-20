@@ -45,9 +45,15 @@ export async function runDigestTick(
   const results = await sendDigest(digest);
   const sent = results.filter((r) => r.sent).length;
 
-  lastSentDateKey = todayKey;
+  // Only mark the day sent when at least one recipient actually received it.
+  // If the socket is down or there are no recipients, leave the key unset so
+  // the next tick retries instead of silently dropping the day's digest.
+  if (sent > 0) {
+    lastSentDateKey = todayKey;
+  }
+
   return {
-    sent: true,
+    sent: sent > 0,
     reason: sent > 0 ? "delivered" : "no_recipients_or_socket_down",
     recipients: sent,
   };

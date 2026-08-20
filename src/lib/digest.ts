@@ -69,3 +69,18 @@ export function wibDateKey(now: Date = new Date()): string {
 
 /** Default daily send hour in WIB (17:00 / 5pm). Configurable via env. */
 export const DEFAULT_DIGEST_HOUR = 17;
+
+/**
+ * Return the UTC [start, end) range covering the WIB calendar day of `now`.
+ * Used by buildDigest to bound "today's" activity events. The start is WIB
+ * midnight expressed in UTC; the end is 24h later.
+ */
+export function wibDayRange(now: Date): [Date, Date] {
+  const wib = toWIB(now);
+  const startUTC = new Date(
+    Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()) -
+      WIB_OFFSET_HOURS * 60 * 60 * 1000,
+  );
+  const endUTC = new Date(startUTC.getTime() + 86_400_000);
+  return [startUTC, endUTC];
+}
