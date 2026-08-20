@@ -10,6 +10,7 @@
 import { findWhitelistedUser } from "@/services/whatsapp/whitelist";
 import { sendText } from "@/services/whatsapp/sender";
 import { respond } from "@/services/chatbot/respond";
+import { tryHandleTaskIntent } from "@/services/task-agent/orchestrator";
 import type { Role } from "@/lib/roles";
 
 export interface InboundPayload {
@@ -31,6 +32,19 @@ export async function handleInbound(payload: InboundPayload): Promise<{
     // WABOT-02: non-whitelisted — polite rejection.
     await sendText(payload.jid, "Maaf, nomor Anda tidak terdaftar di P4.AI.");
     return { ok: false, reason: "not_whitelisted" };
+  }
+
+  // SUN-34: try task intent (START/DONE/STATUS) before the general chatbot.
+  // Deterministic commands + AI NL detection → validate → state machine.
+  // If handled (success or rejection), reply and return — don't also call the AI.
+  const taskResult = await tryHandleTaskIntent({
+    userId: user.id,
+    role: user.role as Role,
+    text: payload.text,
+  });
+  if (taskResult.handled) {
+    await sendText(payload.jid, taskResult.reply ?? "");
+    return { ok: true, reply: taskResult.reply };
   }
 
   const result = await respond({
