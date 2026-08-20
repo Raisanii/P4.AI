@@ -5,12 +5,14 @@
 // (P4-BE-1 / SUN-31), and logs to ReminderLog so the same (user, assignment,
 // type) is never reminded twice.
 //
-// Also writes an ActivityLog entry (eventType REMINDER_SENT) per the PRD's
-// ActivityLog schema (§11.2) so reminders show up in analytics.
+// ReminderLog is written ONLY when the message was actually delivered
+// (sendText returned a message key). A failed send leaves no log, so the next
+// scheduler tick retries it — no lost reminders (fixes C1/S1).
 
 import { prisma } from "@/lib/db";
 import { sendText } from "@/services/whatsapp/sender";
 import { normalizeNumber } from "@/services/whatsapp/whitelist";
+import { Prisma } from "@prisma/client";
 import type { ReminderType } from "@prisma/client";
 import type { ReminderCandidate } from "@/services/reminder/engine";
 
@@ -34,9 +36,11 @@ export type SendResult = {
  * Send reminders for a batch of candidates. Each send is independent — one
  * failure doesn't abort the rest. Returns per-candidate results.
  *
- * Dedup: ReminderLog has a unique constraint on (userId, assignmentId,
- * reminderType). We attempt an upsert — if a log already exists (race with
- * another scheduler tick), the reminder is skipped.
+ * Dedup is the ReminderLog unique constraint on (userId, assignmentId,
+ * reminderType). The log row is created atomically with the send: we insert
+ * FIRST (claiming the slot), then send; if send fails we delete the claim so
+ * the next tick can retry. Two concurrent ticks racing on the same candidate
+ * resolve via the unique constraint — the loser gets P2002 and skips.
  */
 export async function sendReminders(
   candidates: ReminderCandidate[],
@@ -45,24 +49,6 @@ export async function sendReminders(
 
   for (const candidate of candidates) {
     try {
-      // Dedup via upsert — if the log row already exists, skip sending.
-      // This handles the race between two scheduler ticks cleanly.
-      const existing = await prisma.reminderLog.findUnique({
-        where: {
-          userId_assignmentId_reminderType: {
-            userId: candidate.userId,
-            assignmentId: candidate.assignmentId,
-            reminderType: candidate.reminderType,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (existing) {
-        results.push({ candidate, sent: false, error: "already_sent" });
-        continue;
-      }
-
       const message = TEMPLATES[candidate.reminderType](
         candidate.userName,
         candidate.assignmentTitle,
@@ -75,18 +61,46 @@ export async function sendReminders(
         continue;
       }
 
+      // Claim the slot first — if another tick already sent this, the unique
+      // constraint rejects and we skip (no double-send, no spam).
+      let claimed = false;
+      try {
+        await prisma.reminderLog.create({
+          data: {
+            userId: candidate.userId,
+            assignmentId: candidate.assignmentId,
+            reminderType: candidate.reminderType,
+          },
+        });
+        claimed = true;
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          // Already sent by a concurrent tick — skip.
+          results.push({ candidate, sent: false, error: "already_sent" });
+          continue;
+        }
+        throw err;
+      }
+
       const delivered = await sendText(jid, message);
 
-      // Log regardless of delivery — if the socket is down, we don't want to
-      // retry every tick. The reminder was "attempted" at this offset.
-      // ponytail: skipped: retry-queue on socket-down; add when pm2+queue is wired.
-      await prisma.reminderLog.create({
-        data: {
-          userId: candidate.userId,
-          assignmentId: candidate.assignmentId,
-          reminderType: candidate.reminderType,
-        },
-      });
+      if (delivered === undefined) {
+        // Socket down / send failed → roll back the claim so the next tick
+        // retries instead of permanently losing the reminder.
+        if (claimed) {
+          await prisma.reminderLog.delete({
+            where: {
+              userId_assignmentId_reminderType: {
+                userId: candidate.userId,
+                assignmentId: candidate.assignmentId,
+                reminderType: candidate.reminderType,
+              },
+            },
+          });
+        }
+        results.push({ candidate, sent: false, error: "not_delivered" });
+        continue;
+      }
 
       // ActivityLog (§11.2) — REMINDER_SENT event for analytics.
       await prisma.activityLog.create({
@@ -98,12 +112,12 @@ export async function sendReminders(
           metadata: {
             reminderType: candidate.reminderType,
             assignmentTitle: candidate.assignmentTitle,
-            delivered: delivered !== undefined,
+            delivered: true,
           },
         },
       });
 
-      results.push({ candidate, sent: delivered !== undefined });
+      results.push({ candidate, sent: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[reminder] send failed", candidate.userId, candidate.assignmentId, msg);
@@ -112,6 +126,15 @@ export async function sendReminders(
   }
 
   return results;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return err.code === "P2002";
+  }
+  // Fallback for adapter-wrapped errors that lose the class identity.
+  const code = (err as { code?: unknown })?.code;
+  return code === "P2002";
 }
 
 /** Convert an E.164 number (e.g. +62812...) to a Baileys JID. */

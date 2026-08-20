@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import { sendReminders } from "@/services/reminder/sender";
+import type { ReminderCandidate } from "@/services/reminder/engine";
 import type { ReminderType, ProgressStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -84,22 +85,21 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build candidates, filtering out already-reminded (dedup).
-  const candidates = [];
-  const skipped = [];
-  for (const row of progressRows) {
-    const existing = await prisma.reminderLog.findUnique({
-      where: {
-        userId_assignmentId_reminderType: {
-          userId: row.userId,
-          assignmentId,
-          reminderType,
-        },
-      },
-      select: { id: true },
-    });
+  // Build candidates, filtering out already-reminded (dedup, single batched query).
+  const alreadyReminded = await prisma.reminderLog.findMany({
+    where: {
+      assignmentId,
+      reminderType,
+      userId: { in: progressRows.map((r) => r.userId) },
+    },
+    select: { userId: true },
+  });
+  const alreadySet = new Set(alreadyReminded.map((l) => l.userId));
 
-    if (existing) {
+  const candidates: ReminderCandidate[] = [];
+  const skipped: string[] = [];
+  for (const row of progressRows) {
+    if (alreadySet.has(row.userId)) {
       skipped.push(row.userId);
       continue;
     }

@@ -3,13 +3,15 @@
 // Given a reminder type (T-3d, T-1d, T-6h), find all (user, assignment) pairs
 // that should receive a reminder right now:
 //
-//   status == TODO  AND deadline is within the offset window → SEND
-//   status == IN_PROGRESS → optional (only for T-6h, the urgent nudge)
-//   status == DONE → STOP (never reminded)
+// status == TODO AND deadline is within the offset window → SEND
+// status == IN_PROGRESS → optional (only for T-6h, the urgent nudge)
+// status == DONE → STOP (never reminded)
 //
-// Dedup is enforced later by the sender via ReminderLog unique constraint
-// (userId + assignmentId + reminderType), but we pre-filter here so the
-// scheduler doesn't even attempt already-sent reminders.
+// The window is a NARROW BAND around each offset, not [now, now+offset]:
+//   [now + offset - band, now + offset]
+// so a task 5h from deadline only matches T-6h, not T-3d/T-1d too (§7.14 no
+// spam). `bandMs` defaults to the 15-min poll interval so every tick catches
+// the band exactly once.
 
 import { prisma } from "@/lib/db";
 import type { ReminderType, ProgressStatus } from "@prisma/client";
@@ -20,6 +22,9 @@ const OFFSET_HOURS: Record<ReminderType, number> = {
   T_MINUS_1_DAY: 24,
   T_MINUS_6_HOURS: 6,
 };
+
+/** Default band width = scheduler poll interval (15 min). */
+const DEFAULT_BAND_MS = 15 * 60 * 1000;
 
 export type ReminderCandidate = {
   userId: string;
@@ -34,16 +39,18 @@ export type ReminderCandidate = {
 
 /**
  * Find candidates for a given reminder type whose deadline falls within the
- * matching window. The window is [now, now + offset] — i.e. the deadline is
- * between now and `offset` hours from now. We also exclude DONE and
- * already-reminded pairs (via LEFT JOIN on ReminderLog).
+ * narrow band `[now + offset - band, now + offset]`. Already-reminded pairs
+ * are excluded via a single batched ReminderLog lookup (no N+1).
  */
 export async function getReminderCandidates(
   reminderType: ReminderType,
   now: Date = new Date(),
+  bandMs: number = DEFAULT_BAND_MS,
 ): Promise<ReminderCandidate[]> {
   const offsetMs = OFFSET_HOURS[reminderType] * 60 * 60 * 1000;
-  const windowEnd = new Date(now.getTime() + offsetMs);
+  const target = now.getTime() + offsetMs;
+  const windowStart = new Date(target - bandMs);
+  const windowEnd = new Date(target);
 
   // T-6h also reminds IN_PROGRESS students (optional per §7.14); others only TODO.
   const allowedStatuses: ProgressStatus[] =
@@ -51,45 +58,47 @@ export async function getReminderCandidates(
       ? ["TODO", "IN_PROGRESS"]
       : ["TODO"];
 
-  // Fetch progress rows matching the status + deadline window, with a LEFT
-  // JOIN to ReminderLog so we can filter out already-sent reminders in one
-  // query rather than N+1.
   const rows = await prisma.assignmentProgress.findMany({
     where: {
       status: { in: allowedStatuses },
       assignment: {
         deadline: {
-          gte: now,
+          gte: windowStart,
           lte: windowEnd,
         },
       },
     },
-    include: {
+    select: {
+      userId: true,
+      assignmentId: true,
+      status: true,
       user: {
         select: { id: true, name: true, whatsappNumber: true },
       },
       assignment: {
         select: { id: true, title: true, deadline: true },
       },
-      // We'll check reminderLogs in-memory; it's a small set.
     },
   });
 
-  const candidates: ReminderCandidate[] = [];
+  if (rows.length === 0) return [];
 
+  // Single batched dedup query — already-sent (userId, assignmentId) pairs.
+  const sentLogs = await prisma.reminderLog.findMany({
+    where: {
+      reminderType,
+      userId: { in: rows.map((r) => r.userId) },
+      assignmentId: { in: rows.map((r) => r.assignmentId) },
+    },
+    select: { userId: true, assignmentId: true },
+  });
+  const sentSet = new Set(
+    sentLogs.map((l) => `${l.userId}:${l.assignmentId}`),
+  );
+
+  const candidates: ReminderCandidate[] = [];
   for (const row of rows) {
-    // Check if already reminded for this type.
-    const already = await prisma.reminderLog.findUnique({
-      where: {
-        userId_assignmentId_reminderType: {
-          userId: row.userId,
-          assignmentId: row.assignmentId,
-          reminderType,
-        },
-      },
-      select: { id: true },
-    });
-    if (already) continue;
+    if (sentSet.has(`${row.userId}:${row.assignmentId}`)) continue;
 
     candidates.push({
       userId: row.userId,
@@ -113,4 +122,4 @@ export const ALL_REMINDER_TYPES: ReminderType[] = [
   "T_MINUS_6_HOURS",
 ];
 
-export { OFFSET_HOURS };
+export { OFFSET_HOURS, DEFAULT_BAND_MS };
