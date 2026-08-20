@@ -11,6 +11,10 @@
 // Dedup is atomic (SUN-37): claimReminder inserts the ReminderLog row first.
 // If the unique constraint rejects a duplicate (P2002) the send is skipped
 // before any WhatsApp call — so concurrent scheduler ticks can't double-send.
+//
+// Rollback on failed send (SUN-36): if sendText returns undefined (socket
+// down or send error), the claim is released so the next scheduler tick
+// retries instead of permanently losing the reminder.
 
 import { prisma } from "@/lib/db";
 import { sendText } from "@/services/whatsapp/sender";
@@ -39,9 +43,10 @@ export type SendResult = {
  * Send reminders for a batch of candidates. Each send is independent — one
  * failure doesn't abort the rest. Returns per-candidate results.
  *
- * Dedup: ReminderLog has a unique constraint on (userId, assignmentId,
- * reminderType). We attempt an upsert — if a log already exists (race with
- * another scheduler tick), the reminder is skipped.
+ * Dedup is the ReminderLog unique constraint on (userId, assignmentId,
+ * reminderType), made atomic by claimReminder (SUN-37). We claim the slot
+ * first; the loser of a race gets P2002 and skips. If the actual send fails
+ * (socket down), we release the claim so the next tick retries (SUN-36).
  */
 export async function sendReminders(
   candidates: ReminderCandidate[],
@@ -49,55 +54,65 @@ export async function sendReminders(
   const results: SendResult[] = [];
 
   for (const candidate of candidates) {
-   try {
-    // Atomic dedup: claim the slot by inserting ReminderLog first. If a
-    // duplicate (P2002) is thrown, another tick already sent — skip before
-    // touching WhatsApp. This closes the TOCTOU window the old findUnique→
-    // send→create sequence had.
-    const claimed = await claimReminder({
-     userId: candidate.userId,
-     assignmentId: candidate.assignmentId,
-     reminderType: candidate.reminderType,
-    });
-    if (!claimed) {
-     results.push({ candidate, sent: false, error: "already_sent" });
-     continue;
-    }
+    try {
+      const message = TEMPLATES[candidate.reminderType](
+        candidate.userName,
+        candidate.assignmentTitle,
+      );
 
-    const message = TEMPLATES[candidate.reminderType](
-     candidate.userName,
-     candidate.assignmentTitle,
-    );
+      // Convert E.164 number to WhatsApp JID (before claiming, so an invalid
+      // number never occupies a ReminderLog slot).
+      const jid = toJid(candidate.whatsappNumber);
+      if (!jid) {
+        results.push({ candidate, sent: false, error: "invalid_number" });
+        continue;
+      }
 
-    // Convert E.164 number to WhatsApp JID.
-    const jid = toJid(candidate.whatsappNumber);
-    if (!jid) {
-     results.push({ candidate, sent: false, error: "invalid_number" });
-     continue;
-    }
+      // Atomic dedup (SUN-37): claim the slot by inserting ReminderLog first.
+      const claimed = await claimReminder({
+        userId: candidate.userId,
+        assignmentId: candidate.assignmentId,
+        reminderType: candidate.reminderType,
+      });
+      if (!claimed) {
+        results.push({ candidate, sent: false, error: "already_sent" });
+        continue;
+      }
 
-    // Send after the claim — never before. A send failure still leaves the
-    // log row in place; the old code made the same "attempted at this
-    // offset" trade-off, just not race-safely.
-    // ponytail: skipped: retry-queue on socket-down; add when pm2+queue is wired.
-    const delivered = await sendText(jid, message);
+      const delivered = await sendText(jid, message);
 
-    // ActivityLog (§11.2) — REMINDER_SENT event for analytics.
-    await prisma.activityLog.create({
-     data: {
-      userId: candidate.userId,
-      assignmentId: candidate.assignmentId,
-      eventType: "REMINDER_SENT",
-      source: "SYSTEM",
-      metadata: {
-       reminderType: candidate.reminderType,
-       assignmentTitle: candidate.assignmentTitle,
-       delivered: delivered !== undefined,
-      },
-     },
-    });
+      if (delivered === undefined) {
+        // Socket down / send failed → release the claim so the next tick
+        // retries instead of permanently losing the reminder (SUN-36 S1).
+        await prisma.reminderLog.delete({
+          where: {
+            userId_assignmentId_reminderType: {
+              userId: candidate.userId,
+              assignmentId: candidate.assignmentId,
+              reminderType: candidate.reminderType,
+            },
+          },
+        });
+        results.push({ candidate, sent: false, error: "not_delivered" });
+        continue;
+      }
 
-    results.push({ candidate, sent: delivered !== undefined });
+      // ActivityLog (§11.2) — REMINDER_SENT event for analytics.
+      await prisma.activityLog.create({
+        data: {
+          userId: candidate.userId,
+          assignmentId: candidate.assignmentId,
+          eventType: "REMINDER_SENT",
+          source: "SYSTEM",
+          metadata: {
+            reminderType: candidate.reminderType,
+            assignmentTitle: candidate.assignmentTitle,
+            delivered: true,
+          },
+        },
+      });
+
+      results.push({ candidate, sent: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[reminder] send failed", candidate.userId, candidate.assignmentId, msg);

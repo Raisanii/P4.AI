@@ -6,7 +6,7 @@
 // the scheduler's window check but still respects dedup via ReminderLog.
 //
 // Body:
-//   { assignmentId: string, reminderType?: "T_MINUS_3_DAYS" | "T_MINUS_1_DAY" | "T_MINUS_6_HOURS" }
+// { assignmentId: string, reminderType?: "T_MINUS_3_DAYS" | "T_MINUS_1_DAY" | "T_MINUS_6_HOURS" }
 //
 // Default reminderType = T_MINUS_1_DAY (the most common manual nudge).
 
@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import { sendReminders } from "@/services/reminder/sender";
-import { wasAlreadySent } from "@/services/reminder/dedup";
+import type { ReminderCandidate } from "@/services/reminder/engine";
 import type { ReminderType, ProgressStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -85,33 +85,35 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build candidates, filtering out already-reminded (dedup). This is a
-  // read-only pre-filter; the authoritative atomic gate is claimReminder
-  // inside sendReminders (SUN-37).
-  const candidates = [];
-  const skipped = [];
+  // Build candidates, filtering out already-reminded (dedup, single batched query).
+  const alreadyReminded = await prisma.reminderLog.findMany({
+    where: {
+      assignmentId,
+      reminderType,
+      userId: { in: progressRows.map((r) => r.userId) },
+    },
+    select: { userId: true },
+  });
+  const alreadySet = new Set(alreadyReminded.map((l) => l.userId));
+
+  const candidates: ReminderCandidate[] = [];
+  const skipped: string[] = [];
   for (const row of progressRows) {
-   const already = await wasAlreadySent({
-    userId: row.userId,
-    assignmentId,
-    reminderType,
-   });
+    if (alreadySet.has(row.userId)) {
+      skipped.push(row.userId);
+      continue;
+    }
 
-   if (already) {
-    skipped.push(row.userId);
-    continue;
-   }
-
-   candidates.push({
-    userId: row.userId,
-    userName: row.user.name,
-    whatsappNumber: row.user.whatsappNumber,
-    assignmentId,
-    assignmentTitle: assignment.title,
-    deadline: assignment.deadline,
-    status: row.status,
-    reminderType,
-   });
+    candidates.push({
+      userId: row.userId,
+      userName: row.user.name,
+      whatsappNumber: row.user.whatsappNumber,
+      assignmentId,
+      assignmentTitle: assignment.title,
+      deadline: assignment.deadline,
+      status: row.status,
+      reminderType,
+    });
   }
 
   if (candidates.length === 0) {

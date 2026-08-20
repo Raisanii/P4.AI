@@ -1,16 +1,11 @@
 // P4.AI — Reminder scheduler: fires at T-3d, T-1d, T-6h before deadlines (§7.13).
 //
-// Runs as a standalone `tsx` script (like the WhatsApp client) — launched via
-// pm2/systemd on the Pi. Polls every 15 minutes, checks each reminder type's
-// window, selects candidates via the engine, and sends via the sender.
-//
-// The scheduler is timezone-aware (WIB / UTC+7) — all deadline comparisons
-// use the wall-clock offset, not the server's local TZ, so it works correctly
-// regardless of where the Pi's clock is set.
-//
-// 15-minute poll interval is sufficient: the widest window (T-3d) has a
-// 72-hour band, and the narrowest (T-6h) has 6 hours, so a 15-min tick
-// catches every window with comfortable margin.
+// Runs as a standalone `tsx` script — launched via pm2/systemd on the Pi.
+// On startup it connects the WhatsApp socket (startWhatsApp) so `sendText`
+// actually delivers; without this the socket singleton stays null and every
+// reminder silently no-ops (fixes C1). Polls every 15 minutes, checks each
+// reminder type's narrow band, selects candidates via the engine, and sends
+// via the sender.
 //
 // Usage:
 //   tsx src/services/reminder/scheduler.ts
@@ -19,11 +14,13 @@ import { prisma } from "@/lib/db";
 import {
   getReminderCandidates,
   ALL_REMINDER_TYPES,
+  DEFAULT_BAND_MS,
 } from "@/services/reminder/engine";
 import { sendReminders } from "@/services/reminder/sender";
+import { startWhatsApp } from "@/services/whatsapp/client";
 import type { ReminderType } from "@prisma/client";
 
-const POLL_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const POLL_INTERVAL_MS = DEFAULT_BAND_MS; // 15 minutes
 
 /**
  * Run one tick of the scheduler: for each reminder type, find candidates and
@@ -55,9 +52,16 @@ export async function runReminderTick(now: Date = new Date()): Promise<
   return summary;
 }
 
-/** Main poll loop — runs forever. */
+/** Main entry — connect WhatsApp, then poll forever. */
 async function main() {
-  console.log("[reminder] scheduler started — poll every 15 min");
+  console.log("[reminder] scheduler started — connecting WhatsApp + polling every 15 min");
+
+  // C1: the scheduler owns its own WhatsApp socket so sends actually deliver.
+  // The onMessage handler is a no-op — inbound intent handling lives in the
+  // bot process (WABOT-03+); this process only needs to SEND.
+  await startWhatsApp(() => {
+    // No inbound handling here; reminder process is send-only.
+  });
 
   // Run an immediate tick on startup, then poll on interval.
   await tick();
