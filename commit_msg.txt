@@ -1,0 +1,7 @@
+fix(auth): address review — open redirect, /admin RBAC, signIn try/catch (SUN-12)
+
+1. LoginForm: validate callbackUrl (root-relative only, reject // and
+   absolute URLs) before router.push.
+2. /admin: server-side SUPER_ADMIN guard (redirect("/")) + middleware
+   blocks non-admin from /admin.
+3. LoginForm: try/catch/finally around signIn so loading always resets.
