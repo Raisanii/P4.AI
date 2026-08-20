@@ -677,7 +677,256 @@ body {
 }
 
 .schedule-room {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  margin-left: 0.25rem;
+ font-size: 0.6875rem;
+ color: var(--text-muted);
+ margin-left: 0.25rem;
+}
+
+/* ---- Task list + cards (TASK-04, TASK-10) ---- */
+
+.task-cards {
+ display: grid;
+ gap: 0.75rem;
+ grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+ .task-cards {
+ grid-template-columns: repeat(2, 1fr);
+ }
+}
+
+@media (min-width: 64rem) {
+ .task-cards {
+ grid-template-columns: repeat(3, 1fr);
+ }
+}
+
+.task-card {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 0.875rem;
+ display: flex;
+ flex-direction: column;
+ gap: 0.375rem;
+}
+
+.task-card-overdue {
+ border-color: var(--danger);
+ background: var(--danger-bg);
+}
+
+.task-card-head {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+}
+
+.task-type-badge {
+ font-size: 0.6875rem;
+ font-weight: 700;
+ text-transform: uppercase;
+ padding: 0.125rem 0.5rem;
+ border-radius: 999px;
+ background: #eff6ff;
+ color: var(--primary);
+}
+
+.task-deadline-badge {
+ font-size: 0.6875rem;
+ font-weight: 700;
+ font-variant-numeric: tabular-nums;
+ color: var(--text-muted);
+}
+
+.task-deadline-overdue {
+ color: var(--danger);
+}
+
+.task-card-title {
+ font-size: 0.9375rem;
+ font-weight: 600;
+ line-height: 1.3;
+ text-decoration: none;
+ color: var(--text);
+}
+
+.task-card-title:hover {
+ color: var(--primary);
+}
+
+.task-card-meta {
+ display: flex;
+ justify-content: space-between;
+ align-items: baseline;
+ font-size: 0.75rem;
+ color: var(--text-muted);
+}
+
+.task-card-deadline {
+ font-variant-numeric: tabular-nums;
+}
+
+/* ---- Task detail (TASK-11) ---- */
+
+.task-detail {
+ display: flex;
+ flex-direction: column;
+ gap: 1rem;
+}
+
+.task-detail-head {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 0.5rem;
+}
+
+.task-detail-grid {
+ display: flex;
+ flex-direction: column;
+ gap: 0.75rem;
+}
+
+.task-detail-row {
+ display: flex;
+ flex-direction: column;
+ gap: 0.125rem;
+}
+
+.task-detail-row dt {
+ font-size: 0.75rem;
+ font-weight: 600;
+ color: var(--text-muted);
+}
+
+.task-detail-row dd {
+ font-size: 0.875rem;
+ line-height: 1.4;
+}
+
+.task-section-title {
+ font-size: 1rem;
+ font-weight: 700;
+ margin-bottom: 0.5rem;
+}
+
+.task-clarifications {
+ border-top: 1px solid var(--border);
+ padding-top: 1rem;
+}
+
+.clarification-list {
+ display: flex;
+ flex-direction: column;
+ gap: 0.625rem;
+}
+
+.clarification-item {
+ display: flex;
+ flex-direction: column;
+ gap: 0.125rem;
+}
+
+.clarification-item dt {
+ font-size: 0.8125rem;
+ font-weight: 600;
+ color: var(--text);
+}
+
+.clarification-item dd {
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+ line-height: 1.4;
+}
+
+/* ---- Clarification wizard (TASK-02, §7.6) ---- */
+
+.wizard-step-title {
+ font-size: 1rem;
+ font-weight: 700;
+ margin-bottom: 0.25rem;
+}
+
+.wizard-step-desc {
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+ margin-bottom: 0.75rem;
+}
+
+.wizard-question-preview {
+ list-style: decimal;
+ padding-left: 1.5rem;
+ display: flex;
+ flex-direction: column;
+ gap: 0.375rem;
+ font-size: 0.8125rem;
+ margin-bottom: 0.75rem;
+}
+
+.wizard-answers {
+ display: flex;
+ flex-direction: column;
+ gap: 0.625rem;
+ margin-bottom: 0.75rem;
+}
+
+.wizard-loading {
+ display: flex;
+ align-items: center;
+ gap: 0.5rem;
+ font-size: 0.8125rem;
+ color: var(--text-muted);
+ margin-top: 0.5rem;
+}
+
+.spinner {
+ width: 1rem;
+ height: 1rem;
+ border: 2px solid var(--border);
+ border-top-color: var(--primary);
+ border-radius: 50%;
+ animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+ to { transform: rotate(360deg); }
+}
+
+.wizard-preview {
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+ margin-bottom: 0.75rem;
+}
+
+.wizard-preview-row {
+ display: flex;
+ gap: 0.5rem;
+ font-size: 0.8125rem;
+ border-bottom: 1px solid var(--border);
+ padding-bottom: 0.375rem;
+}
+
+.wizard-preview-row dt {
+ font-weight: 600;
+ color: var(--text-muted);
+ min-width: 8rem;
+}
+
+.wizard-preview-row dd {
+ flex: 1;
+ word-break: break-word;
+}
+
+/* ---- Dashboard task-list link ---- */
+
+.task-list .task-title {
+ text-decoration: none;
+ color: var(--text);
+}
+
+.task-list .task-title:hover {
+ color: var(--primary);
 }

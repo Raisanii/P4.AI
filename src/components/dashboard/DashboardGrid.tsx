@@ -14,20 +14,23 @@ import TodayAttendanceWidget from "./widgets/TodayAttendanceWidget";
 import TaskProgressSummaryWidget from "./widgets/TaskProgressSummaryWidget";
 import type { Milestone } from "./widgets/MilestoneCountdown";
 import type { ScheduleEntry } from "./widgets/TodayScheduleWidget";
+import type { ActiveTask } from "./widgets/ActiveTaskWidget";
 
 export default function DashboardGrid({
   milestones,
   schedule,
+  activeTasks,
 }: {
   milestones: Milestone[];
   schedule: ScheduleEntry[];
+  activeTasks?: ActiveTask[] | null;
 }) {
   return (
     <div className="dash-grid">
       <AnnouncementBanner />
       <MilestoneCountdown milestones={milestones} />
       <BirthdayWidget />
-      <ActiveTaskWidget />
+      <ActiveTaskWidget tasks={activeTasks} />
       <TodayScheduleWidget schedule={schedule} />
       <TodayAttendanceWidget />
       <TaskProgressSummaryWidget />

@@ -22,9 +22,10 @@ export default async function Header() {
       <div className="header-left">
         <Link href="/" className="header-brand">P4.AI</Link>
         <nav className="header-nav" aria-label="Navigasi">
-          <Link href="/jadwal" className="header-nav-link">Jadwal</Link>
-          <Link href="/milestone" className="header-nav-link">Milestone</Link>
-          {isAdmin && <Link href="/admin" className="header-nav-link">Admin</Link>}
+        <Link href="/jadwal" className="header-nav-link">Jadwal</Link>
+        <Link href="/tugas" className="header-nav-link">Tugas</Link>
+        <Link href="/milestone" className="header-nav-link">Milestone</Link>
+        {isAdmin && <Link href="/admin" className="header-nav-link">Admin</Link>}
         </nav>
       </div>
       <div className="header-user">
