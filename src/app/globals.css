@@ -818,3 +818,157 @@ body {
  font-size: 0.8125rem;
  font-weight: 500;
 }
+
+/* ---- Skeleton loading placeholders (NFR-01) ---- */
+
+@keyframes skeleton-shimmer {
+ 0% {
+   background-position: -200% 0;
+ }
+ 100% {
+   background-position: 200% 0;
+ }
+}
+
+.skeleton-card,
+.skeleton-row {
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+ padding: 1rem;
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+}
+
+.skeleton-list {
+ display: flex;
+ flex-direction: column;
+ gap: 0.5rem;
+}
+
+.skeleton-line {
+ height: 0.75rem;
+ border-radius: var(--radius);
+ background: linear-gradient(
+   90deg,
+   var(--bg) 25%,
+   #e8edf3 50%,
+   var(--bg) 75%
+ );
+ background-size: 200% 100%;
+ animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-line-title {
+ height: 1rem;
+ width: 60%;
+}
+
+.skeleton-line-short {
+ width: 40%;
+}
+
+/* ---- Error boundary (NFR-06) ---- */
+
+.error-boundary {
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ gap: 0.75rem;
+ padding: 3rem 1.5rem;
+ text-align: center;
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ max-width: 28rem;
+ margin: 0 auto;
+}
+
+.error-boundary-icon {
+ font-size: 2.5rem;
+ line-height: 1;
+}
+
+.error-boundary-title {
+ font-size: 1.25rem;
+ font-weight: 700;
+ color: var(--text);
+}
+
+.error-boundary-message {
+ font-size: 0.875rem;
+ color: var(--text-muted);
+ line-height: 1.5;
+}
+
+/* ---- Responsive header (DASH-11, NFR-06 mobile-first) ---- */
+/* At <640px the nav links wrap to a second row so they don't overflow. */
+
+@media (max-width: 39.9375rem) {
+ .header {
+   flex-wrap: wrap;
+   gap: 0.5rem;
+   padding: 0.625rem 0.75rem;
+ }
+
+ .header-left {
+   flex: 1 1 100%;
+   flex-wrap: wrap;
+   gap: 0.5rem 1rem;
+ }
+
+ .header-nav {
+   flex-wrap: wrap;
+   gap: 0.125rem;
+ }
+
+ .header-nav-link {
+   font-size: 0.8125rem;
+   padding: 0.25rem 0.5rem;
+ }
+
+ .header-user {
+   flex: 1 1 100%;
+   justify-content: flex-end;
+   gap: 0.5rem;
+ }
+
+ .header-user .name {
+   font-size: 0.8125rem;
+ }
+
+ .header-user .role-badge {
+   font-size: 0.6875rem;
+ }
+
+ .page {
+   padding: 1rem 0.625rem;
+ }
+
+ .dash-title {
+   font-size: 1.125rem;
+   margin-bottom: 0.75rem;
+ }
+
+ .page-title {
+   font-size: 1.125rem;
+ }
+
+ .page-head {
+   gap: 0.5rem;
+ }
+
+ .widget {
+   padding: 0.75rem;
+ }
+}
+
+/* ---- Wider desktop layout (≥1280px / 80rem) ---- */
+
+@media (min-width: 80rem) {
+ .page {
+   max-width: 72rem;
+   padding: 2rem 1.5rem;
+ }
+}
