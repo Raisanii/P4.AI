@@ -681,3 +681,57 @@ body {
   color: var(--text-muted);
   margin-left: 0.25rem;
 }
+
+/* ---- Badges (PRD §7.16 positive gamification) ---- */
+
+.badge-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 30rem) {
+  .badge-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 48rem) {
+  .badge-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.badge-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.badge-earned {
+  opacity: 1;
+  border-color: var(--primary);
+  background: #eff6ff;
+}
+
+.badge-emoji {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.badge-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.badge-desc {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
