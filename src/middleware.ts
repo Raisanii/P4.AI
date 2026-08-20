@@ -43,9 +43,19 @@ export default auth((req) => {
 
   // 2. Role-based landing: super admin hitting `/` should go to /admin.
   if (role === "SUPER_ADMIN" && pathname === "/") {
-    const url = req.nextUrl.clone();
-    url.pathname = ROLE_LANDING.SUPER_ADMIN;
-    return NextResponse.redirect(url);
+  const url = req.nextUrl.clone();
+  url.pathname = ROLE_LANDING.SUPER_ADMIN;
+  return NextResponse.redirect(url);
+  }
+
+  // 3. Non-super-admin hitting /admin → redirect to role landing (NFR-05).
+  // Page-route RBAC: the admin area is SUPER_ADMIN-only. API routes are
+  // already guarded by `requireRole`, this closes the page-level gap.
+  if (pathname === "/admin" && role !== "SUPER_ADMIN") {
+  const url = req.nextUrl.clone();
+  url.pathname = ROLE_LANDING[role ?? "STUDENT"] ?? "/";
+  url.search = "";
+  return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
