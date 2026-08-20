@@ -1,5 +1,5 @@
 // P4.AI — Today's schedule slot (DASH-06).
-// ponytail: empty-state placeholder; Phase 2 wires schedule API.
+// Wired to schedule service via the dashboard server component.
 
 export type ScheduleEntry = {
   id: string;
@@ -33,6 +33,7 @@ export default function TodayScheduleWidget({ schedule }: Props) {
           <li key={s.id}>
             <span className="schedule-time">{s.startTime}</span>
             <span className="schedule-subject">{s.subject}</span>
+            {s.room && <span className="schedule-room">{s.room}</span>}
           </li>
         ))}
       </ul>

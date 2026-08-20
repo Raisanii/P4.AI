@@ -1,5 +1,5 @@
 // P4.AI — Milestone countdown slot (DASH-03).
-// ponytail: empty-state placeholder; Phase 2 wires `GET /api/milestones`.
+// Wired to `GET /api/milestone?active=true` via the dashboard server component.
 
 export type Milestone = {
   id: string;
@@ -7,6 +7,7 @@ export type Milestone = {
   type: "PTS" | "PAS" | "PRAKERIN" | "UJIAN" | "LIBUR" | "OTHER";
   date: Date | string;
   active?: boolean;
+  countdownDays?: number;
 };
 
 import { WidgetShell } from "./AnnouncementBanner";
@@ -32,6 +33,9 @@ export default function MilestoneCountdown({ milestones }: Props) {
           <li key={m.id}>
             <span className="milestone-type">{m.type}</span>
             <span className="milestone-title">{m.title}</span>
+            {m.countdownDays !== undefined && (
+              <span className="milestone-countdown">H-{m.countdownDays}</span>
+            )}
           </li>
         ))}
       </ul>
