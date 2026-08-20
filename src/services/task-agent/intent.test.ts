@@ -24,6 +24,10 @@ async function main() {
   assert.equal(nl?.type, "START_TASK");
   assert.equal(nl?.viaAI, false, "keyword fallback is not AI");
 
+  // BUG-001 regression: "tugas" must NOT match "gas" (START_TASK substring).
+  const tugas = await detectIntent("kak tugas matematika besok dikumpulin?");
+  assert.notEqual(tugas?.type, "START_TASK", '"tugas" must not route to START_TASK');
+
   // Non-task message → null (no keyword hit).
   const none = await detectIntent("halo kak, apa kabar?");
   // "kabar" contains "kabar" → STATUS_TASK keyword hit — acceptable (low precision

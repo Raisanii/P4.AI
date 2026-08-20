@@ -68,6 +68,7 @@ const FALLBACK_KEYWORDS: { type: TaskIntentType; words: string[] }[] = [
 /**
  * Keyword-based fallback when 9router is unavailable (risk: "9router down → fallback").
  * Coarse but deterministic — matches Indonesian slang + formal words.
+ * Whole-word match only: `"gas"` must not fire inside `"tugas"` (BUG-001).
  * @param raw — the inbound message text.
  * @returns a best-guess intent, or null if no task keywords found.
  */
@@ -75,11 +76,15 @@ function keywordIntent(raw: string): TaskIntent | null {
   const q = raw.toLowerCase();
 
   for (const { type, words } of FALLBACK_KEYWORDS) {
-    if (words.some((w) => q.includes(w))) {
+    if (words.some((w) => new RegExp(`\\b${escapeRegex(w)}\\b`, "i").test(q))) {
       return { type, task: raw, viaAI: false, raw };
     }
   }
   return null;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const AI_SYSTEM_PROMPT = `Kamu adalah intent detector untuk bot tugas kelas. Deteksi intent dari pesan siswa dan balas HANYA JSON object.
