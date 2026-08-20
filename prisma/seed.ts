@@ -1,14 +1,33 @@
-// P4.AI — seed entry point (stub).
-// The full 36-student seed is a separate issue (P1-BE-2+).
-// Run: npm run db:seed
+// P4.AI — seed entry point.
+// Seeds the badge catalog (P6-BE-1, §7.16). Student/schedule/task seeds are
+// separate issues (P1-BE-2+). Run: npm run db:seed
 
 import { PrismaClient } from "@prisma/client";
+import { BADGE_DEFS } from "../src/services/badges/defs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // TODO(P1-BE-2): seed students, schedule, tasks, attendance, announcements.
-  console.log("Seed stub — no models yet. Nothing to seed.");
+  // Badge catalog — 5 positive badges (§7.16).
+  for (const def of BADGE_DEFS) {
+    await prisma.badge.upsert({
+      where: { key: def.key },
+      create: {
+        key: def.key,
+        name: def.name,
+        description: def.description,
+        emoji: def.emoji,
+        criteria: def.criteria,
+      },
+      update: {
+        name: def.name,
+        description: def.description,
+        emoji: def.emoji,
+        criteria: def.criteria,
+      },
+    });
+  }
+  console.log(`Seeded ${BADGE_DEFS.length} badges.`);
 }
 
 main()
