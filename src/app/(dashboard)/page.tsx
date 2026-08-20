@@ -3,6 +3,7 @@
 // and today's schedule from the service layer and passes them to DashboardGrid.
 
 import DashboardGrid from "@/components/dashboard/DashboardGrid";
+import DashboardAutoRefresh from "@/components/dashboard/DashboardAutoRefresh";
 import { getActiveMilestones } from "@/services/milestone";
 import { getTodaySchedule } from "@/services/schedule";
 import { getActiveAnnouncements } from "@/services/announcement";
@@ -20,10 +21,11 @@ export default async function DashboardPage() {
  ]);
 
  return (
- <main className="page">
- <h1 className="dash-title">Dashboard</h1>
- <DashboardGrid
- milestones={milestones}
+   <main className="page">
+     <h1 className="dash-title">Dashboard</h1>
+     <DashboardAutoRefresh />
+     <DashboardGrid
+       milestones={milestones}
  schedule={schedule}
  announcements={announcements}
  birthdays={birthdays}
