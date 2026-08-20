@@ -26,6 +26,7 @@ export default async function Header() {
         <Link href="/tugas" className="header-nav-link">Tugas</Link>
         <Link href="/pengumuman" className="header-nav-link">Pengumuman</Link>
         <Link href="/milestone" className="header-nav-link">Milestone</Link>
+        {isAdmin && <Link href="/analytics" className="header-nav-link">Analytics</Link>}
         {isAdmin && <Link href="/admin" className="header-nav-link">Admin</Link>}
         </nav>
       </div>
