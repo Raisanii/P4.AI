@@ -21,23 +21,36 @@ export default function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
     setError(null);
     setLoading(true);
 
-    const res = await signIn("credentials", {
-      name,
-      password,
-      redirect: false,
-    });
+    try {
+      const res = await signIn("credentials", {
+        name,
+        password,
+        redirect: false,
+      });
 
-    setLoading(false);
+      if (res?.error) {
+        // NextAuth returns the same error for any credentials failure — we
+        // keep it generic too (never leak which part was wrong, NFR-05).
+        setError("Nama atau password salah. Coba lagi.");
+        return;
+      }
 
-    if (res?.error) {
-      // NextAuth returns the same error for any credentials failure — we
-      // keep it generic too (never leak which part was wrong, NFR-05).
-      setError("Nama atau password salah. Coba lagi.");
-      return;
+      // Open-redirect guard: only allow same-origin, root-relative paths
+      // (reject absolute URLs and protocol-relative "//" values).
+      const safeUrl =
+        callbackUrl &&
+        callbackUrl.startsWith("/") &&
+        !callbackUrl.startsWith("//")
+          ? callbackUrl
+          : "/";
+
+      router.push(safeUrl);
+      router.refresh();
+    } catch {
+      setError("Terjadi kesalahan. Coba lagi.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push(callbackUrl || "/");
-    router.refresh();
   }
 
   return (

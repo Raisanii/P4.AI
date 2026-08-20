@@ -48,5 +48,13 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
+  // 3. /admin is SUPER_ADMIN-only: other authenticated roles bounce to /.
+  if (pathname === "/admin" && role !== "SUPER_ADMIN") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   return NextResponse.next();
 });
