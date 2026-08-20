@@ -1,15 +1,18 @@
-// P4.AI — Seed 36 SMK students (PPLG 4) + 1 super admin (ketua kelas).
-// PRD: §7.19 Data Siswa; AUTH-02 (default password = NIS); STUD (CRUD siswa); Open Question #1.
+// P4.AI — seed entry point.
+// Seeds 36 SMK students (PPLG 4) + 1 super admin (ketua kelas) AND the badge
+// catalog (P6-BE-1, §7.16). Run: npm run db:seed
 //
-// Idempotent: uses upsert keyed on unique `nis`. Re-running updates fields in place;
-// passwordHash is set once on create and never overwritten — student-changed passwords
-// survive re-seed (AUTH-03).
+// PRD: §7.19 Data Siswa; AUTH-02 (default password = NIS); STUD (CRUD siswa);
+// Open Question #1; §7.16 Positive Gamification.
 //
-// Run: npm run db:seed  (or: npx prisma db seed)
+// Idempotent: students use upsert keyed on unique `nis`; badges use upsert
+// keyed on unique `key`. passwordHash is set once on create and never
+// overwritten — student-changed passwords survive re-seed (AUTH-03).
 
 import { PrismaClient, Role } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import studentsData from "./students.json";
+import { BADGE_DEFS } from "../src/services/badges/defs";
 
 const prisma = new PrismaClient();
 
@@ -22,6 +25,7 @@ type StudentSeed = {
 };
 
 async function main() {
+  // --- Students (P1-BE-2+ / STUD) ---
   const records = studentsData as StudentSeed[];
 
   // Validate source data integrity before touching the DB.
@@ -96,8 +100,29 @@ async function main() {
 
   console.log(
     `seed: done — ${created} created, ${updated} updated, ${unchanged} unchanged. ` +
-      `DB now: ${counts.map((c) => `${c.role}=${c._count}`).join(", ")}`,
+    `DB now: ${counts.map((c) => `${c.role}=${c._count}`).join(", ")}`,
   );
+
+  // --- Badge catalog (P6-BE-1, §7.16) ---
+  for (const def of BADGE_DEFS) {
+    await prisma.badge.upsert({
+      where: { key: def.key },
+      create: {
+        key: def.key,
+        name: def.name,
+        description: def.description,
+        emoji: def.emoji,
+        criteria: def.criteria,
+      },
+      update: {
+        name: def.name,
+        description: def.description,
+        emoji: def.emoji,
+        criteria: def.criteria,
+      },
+    });
+  }
+  console.log(`Seeded ${BADGE_DEFS.length} badges.`);
 }
 
 main()
