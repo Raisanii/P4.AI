@@ -2,13 +2,13 @@
 // PRD: §7.19 Data Siswa; AUTH-02 (default password = NIS); STUD (CRUD siswa); Open Question #1.
 //
 // Idempotent: uses upsert keyed on unique `nis`. Re-running updates fields in place;
-// passwordHash is re-hashed only when the stored value no longer matches the NIS (so a
-// student who changed their password is NOT reset by re-seed).
+// passwordHash is set once on create and never overwritten — student-changed passwords
+// survive re-seed (AUTH-03).
 //
 // Run: npm run db:seed  (or: npx prisma db seed)
 
 import { PrismaClient, Role } from "@prisma/client";
-import { hashPassword, verifyPassword } from "../src/lib/password";
+import { hashPassword } from "../src/lib/password";
 import studentsData from "./students.json";
 
 const prisma = new PrismaClient();
@@ -52,17 +52,11 @@ async function main() {
     const role = (r.role ?? "STUDENT") as Role;
     const birthday = new Date(r.birthday + "T00:00:00.000Z");
 
-    // Only (re)hash when the stored hash doesn't already verify against the NIS —
-    // this preserves student-changed passwords across re-seed runs (AUTH-03).
+    // Set passwordHash once on create; on update keep the existing hash so a student
+    // who changed their password is NOT reset by re-seed (AUTH-03).
     const existing = await prisma.user.findUnique({ where: { nis: r.nis } });
 
-    let passwordHash: string;
-    if (existing && verifyPassword(r.nis, existing.passwordHash)) {
-      // Stored hash already matches NIS → keep it (stable across runs).
-      passwordHash = existing.passwordHash;
-    } else {
-      passwordHash = hashPassword(r.nis);
-    }
+    const passwordHash = existing ? existing.passwordHash : hashPassword(r.nis);
 
     const result = await prisma.user.upsert({
       where: { nis: r.nis },
