@@ -24,7 +24,6 @@ import makeWASocket, {
 import P from "pino";
 import qrcode from "qrcode-terminal";
 
-import { prisma } from "@/lib/db";
 import {
   sessionPath,
   wipeAuthState,
@@ -39,6 +38,7 @@ import {
   sendText,
 } from "@/services/whatsapp/sender";
 import { findWhitelistedUser } from "@/services/whatsapp/whitelist";
+import { handleInbound } from "@/services/whatsapp/inbound";
 
 const logger = P({ level: "warn", name: "wa" });
 
@@ -198,13 +198,11 @@ function sleep(ms: number): Promise<void> {
  * In production a process manager (pm2 / systemd) keeps it alive.
  */
 async function main() {
-  // Lazy-import so `import { prisma }` only runs when the script is executed,
-  // not when the module is pulled into the Next.js bundle for types.
   await startWhatsApp(async (msg) => {
-    // WABOT-03+ (AI / intent) hooks here in later issues.
-    console.log("[wa] inbound", msg.name, msg.text.slice(0, 80));
-    // Touch prisma so the import isn't tree-shaken — the real handler will query tasks.
-    await prisma.user.count();
+    // WABOT-03+: AI chatbot grounded over class data (SUN-33).
+    // Whitelist already checked in the messages.upsert handler above;
+    // handleInbound re-checks (defense-in-depth) then runs the responder.
+    await handleInbound({ jid: msg.jid, text: msg.text });
   });
 }
 
