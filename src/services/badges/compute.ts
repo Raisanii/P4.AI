@@ -38,7 +38,6 @@ async function fetchStudentAnalytics(): Promise<StudentAnalytics[]> {
     }),
     prisma.assignmentProgress.findMany({
       where: { status: "DONE", completedAt: { not: null } },
-      include: { assignment: { select: { deadline: true } } },
       select: {
         userId: true,
         startedAt: true,
