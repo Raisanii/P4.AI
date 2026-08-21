@@ -1,19 +1,31 @@
-// P4.AI — Active task widget slot (DASH-05).
-// ponytail: empty-state placeholder; Phase 2/3 wires task + progress APIs.
+// P4.AI — Active task widget (DASH-05).
+// Displays upcoming tasks sorted by deadline. Overdue tasks are excluded
+// from the widget (they show on the task list page with danger styling).
+
+import Link from "next/link";
+import { WidgetShell } from "./AnnouncementBanner";
 
 export type ActiveTask = {
   id: string;
   title: string;
   subject: string;
   deadline: Date | string;
-  progress: { done: number; total: number };
+  type: string;
+  progressCount: number;
 };
-
-import { WidgetShell } from "./AnnouncementBanner";
 
 type Props = {
   tasks?: ActiveTask[] | null;
 };
+
+function formatDeadline(value: Date | string): string {
+  const iso = typeof value === "string" ? value : value.toISOString();
+  return new Date(iso).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
 
 export default function ActiveTaskWidget({ tasks }: Props) {
   const items = tasks ?? [];
@@ -30,9 +42,11 @@ export default function ActiveTaskWidget({ tasks }: Props) {
       <ul className="task-list">
         {items.map((t) => (
           <li key={t.id}>
-            <span className="task-title">{t.title}</span>
+            <Link href={`/tugas/${t.id}`} className="task-title">
+              {t.title}
+            </Link>
             <span className="task-progress">
-              {t.progress.done}/{t.progress.total}
+              {formatDeadline(t.deadline)}
             </span>
           </li>
         ))}

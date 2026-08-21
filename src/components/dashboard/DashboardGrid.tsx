@@ -2,59 +2,38 @@
 // ponytail: CSS grid via globals.css; upgrade to shadcn/ui Grid when a
 // second dashboard variant lands. Breakpoints: <640px 1-col, md 2-col, lg 3-col.
 //
-// DASH-02 (announcements), DASH-03 (milestone), DASH-04 (birthdays), and
-// DASH-06 (schedule) are wired to real data. DASH-07 (attendance) wired via
-// attendance recap service. DASH-09 (task progress) and DASH-10 (daily
-// activity) wired via class analytics metrics (Phase 3).
+// DASH-03 + DASH-06 are wired to real data (schedule + milestone services).
+// Other widgets remain placeholder slots until their APIs land in later phases.
 
 import AnnouncementBanner from "./widgets/AnnouncementBanner";
 import MilestoneCountdown from "./widgets/MilestoneCountdown";
 import BirthdayWidget from "./widgets/BirthdayWidget";
 import ActiveTaskWidget from "./widgets/ActiveTaskWidget";
 import TodayScheduleWidget from "./widgets/TodayScheduleWidget";
-import AttendanceRecap from "./widgets/AttendanceRecap";
+import TodayAttendanceWidget from "./widgets/TodayAttendanceWidget";
 import TaskProgressSummaryWidget from "./widgets/TaskProgressSummaryWidget";
-import DailyActivityWidget from "./widgets/DailyActivityWidget";
-import BadgesWidget from "./widgets/BadgesWidget";
 import type { Milestone } from "./widgets/MilestoneCountdown";
 import type { ScheduleEntry } from "./widgets/TodayScheduleWidget";
-import type { Announcement } from "./widgets/AnnouncementBanner";
-import type { Birthday } from "./widgets/BirthdayWidget";
-import type { TaskProgressSummary } from "./widgets/TaskProgressSummaryWidget";
-import type { DailyActivity } from "./widgets/DailyActivityWidget";
-import type { StudentBadge } from "@/types/badges";
-import type { AttendanceRecapData } from "./widgets/AttendanceRecap";
+import type { ActiveTask } from "./widgets/ActiveTaskWidget";
 
 export default function DashboardGrid({
   milestones,
   schedule,
-  announcements,
-  birthdays,
-  taskProgress,
-  dailyActivity,
-  studentBadges,
-  attendanceRecap,
+  activeTasks,
 }: {
   milestones: Milestone[];
   schedule: ScheduleEntry[];
-  announcements?: Announcement[] | null;
-  birthdays?: Birthday[] | null;
-  taskProgress?: TaskProgressSummary | null;
-  dailyActivity?: DailyActivity | null;
-  studentBadges?: StudentBadge[] | null;
-  attendanceRecap?: AttendanceRecapData | null;
+  activeTasks?: ActiveTask[] | null;
 }) {
   return (
     <div className="dash-grid">
-      <AnnouncementBanner announcements={announcements} />
+      <AnnouncementBanner />
       <MilestoneCountdown milestones={milestones} />
-      <BirthdayWidget birthdays={birthdays} />
-      <ActiveTaskWidget />
+      <BirthdayWidget />
+      <ActiveTaskWidget tasks={activeTasks} />
       <TodayScheduleWidget schedule={schedule} />
-      <AttendanceRecap recap={attendanceRecap} />
-      <TaskProgressSummaryWidget summary={taskProgress} />
-      <DailyActivityWidget activity={dailyActivity} />
-      {studentBadges && <BadgesWidget badges={studentBadges} />}
+      <TodayAttendanceWidget />
+      <TaskProgressSummaryWidget />
     </div>
   );
 }

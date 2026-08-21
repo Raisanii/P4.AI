@@ -1,70 +1,55 @@
-// P4.AI — Student task list (STASK entry point, §7.7).
-// Server component: fetches tasks sorted by deadline, renders links to detail.
-// P2-FE-4 covers the full task list; this is the student-facing list view.
-// ponytail: minimal list; upgrade with filters/search when P2-FE-4 lands.
+// P4.AI — /tugas page (TASK-04, TASK-10).
+// Server component: fetches all tasks sorted by deadline ascending (TASK-04).
+// Overdue tasks (deadline passed) are highlighted by TaskCard (TASK-10).
+// Secretary/Admin see a "create" button (TASK-01). Students see read-only list.
 
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { computeEffectiveStatus } from "@/services/overdue";
-import ProgressBadge, { type EffectiveStatus } from "@/components/task/ProgressBadge";
+import { getAllTasks } from "@/services/task";
+import TaskCard from "@/components/task/TaskCard";
+import type { Role } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
-export default async function TaskListPage() {
+const CAN_EDIT: Role[] = ["SUPER_ADMIN", "SECRETARY"];
+
+export default async function TugasPage() {
+  const tasks = await getAllTasks();
+
   const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return (
-      <main className="page">
-        <div className="alert" role="alert">Silakan login terlebih dahulu.</div>
-      </main>
-    );
-  }
-
-  const [tasks, progressRows] = await Promise.all([
-    prisma.assignment.findMany({ orderBy: { deadline: "asc" } }),
-    prisma.assignmentProgress.findMany({ where: { userId } }),
-  ]);
-
-  const progressByTask = new Map(progressRows.map((p) => [p.assignmentId, p]));
-  const now = new Date();
+  const role = session?.user?.role;
+  const canEdit = role ? CAN_EDIT.includes(role) : false;
 
   return (
     <main className="page">
       <div className="page-head">
-        <h1 className="page-title">Tugas Saya</h1>
+        <h1 className="page-title">Tugas</h1>
+        {canEdit && (
+          <Link href="/tugas/new" className="btn btn-primary btn-sm">
+            + Tambah Tugas
+          </Link>
+        )}
       </div>
 
       {tasks.length === 0 ? (
         <div className="empty-state">Belum ada tugas.</div>
       ) : (
-        <ul className="task-list-items">
-          {tasks.map((task) => {
-            const progress = progressByTask.get(task.id);
-            const status = progress?.status ?? "TODO";
-            const deadline = new Date(task.deadline);
-            const effectiveStatus: EffectiveStatus = computeEffectiveStatus(status, deadline, now);
-
-            return (
-              <li key={task.id}>
-                <Link href={`/tugas/${task.id}`} className="task-list-item">
-                  <div className="task-list-item-main">
-                    <span className="task-list-item-title">{task.title}</span>
-                    <span className="task-list-item-subject">{task.subject}</span>
-                  </div>
-                  <div className="task-list-item-side">
-                    <ProgressBadge status={effectiveStatus} />
-                    <span className="task-list-item-deadline">
-                      {deadline.toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" })}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="task-cards">
+          {tasks.map((t) => (
+            <TaskCard
+              key={t.id}
+              task={{
+                id: t.id,
+                title: t.title,
+                subject: t.subject,
+                deadline: t.deadline,
+                type: t.type,
+                _count: { progress: t._count.progress },
+              }}
+              canEdit={canEdit}
+            />
+          ))}
+        </div>
       )}
     </main>
   );
