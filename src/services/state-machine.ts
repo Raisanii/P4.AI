@@ -1,126 +1,170 @@
-// P4.AI — State machine service (§7.5.1, TASK-08, NFR-10).
+// P4.AI — state machine service for AssignmentProgress (§7.5.1, TASK-05..11).
 //
-// Validates and applies forward-only transitions on AssignmentProgress.
-// This is the single entry point for mutating progress status — route
-// handlers call this, never prisma.assignmentProgress.update directly.
+// Responsibilities:
+//   1. Validate that a requested transition is allowed (forward-only).
+//   2. Atomically update the AssignmentProgress row (status + timestamps +
+//      source) inside a Prisma transaction together with the ActivityLog row,
+//      so a successful transition ALWAYS produces exactly one append-only log
+//      row.
+//   3. Enforce uniqueness (assignmentId, userId) — one progress row per
+//      student per task — by upserting on first START.
 //
-// On success: updates AssignmentProgress (status + timestamps + sources)
-// and appends one ActivityLog row (TASK_STARTED / TASK_COMPLETED).
-// On forbidden transition: returns `{ ok: false, reason }` — caller maps
-// that to HTTP 409.
+// Forbidden transitions (IN_PROGRESS→TODO, DONE→IN_PROGRESS, DONE→TODO) are
+// rejected with a 409-equivalent error (TransitionError) that the route
+// handler maps to HTTP 409 + reason.
+//
+// OVERDUE is never stored — it is a deadline condition computed on read
+// (§7.5.2), handled separately in the read path, not here.
 
+import { Prisma } from "@prisma/client";
+import type {
+  ActivityEventType,
+  ProgressStatus,
+  Source,
+} from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { logActivity } from "@/services/activity-log";
 import {
-  validateTransition,
-  getTargetStatus,
-  getEventType,
-  isSource,
   type TransitionAction,
+  TRANSITIONS,
+  canTransition,
 } from "@/lib/transitions";
-import type { ProgressStatus, Source } from "@prisma/client";
+import { appendActivityLog } from "@/services/activity-log";
 
-export type TransitionOutcome =
-  | { ok: true; progress: ProgressResult }
-  | { ok: false; reason: string; status: number };
+/** Error thrown when a transition is rejected by the state machine. */
+export class TransitionError extends Error {
+  readonly code: "FORBIDDEN_TRANSITION" | "ASSIGNMENT_NOT_FOUND";
+  readonly status: number;
 
-export interface ProgressResult {
-  id: string;
-  assignmentId: string;
-  userId: string;
+  constructor(
+    code: "FORBIDDEN_TRANSITION" | "ASSIGNMENT_NOT_FOUND",
+    message: string,
+    status: number,
+  ) {
+    super(message);
+    this.name = "TransitionError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/** Maps an action to the ActivityEventType it emits. */
+const EVENT_FOR_ACTION: Record<TransitionAction, ActivityEventType> = {
+  START: "TASK_STARTED",
+  COMPLETE: "TASK_COMPLETED",
+};
+
+export interface TransitionResult {
+  progressId: string;
   status: ProgressStatus;
   startedAt: Date | null;
   completedAt: Date | null;
-  startedSource: Source | null;
-  completedSource: Source | null;
 }
 
-/**
- * Apply a forward-only state transition for a student on an assignment.
- *
- * - Finds or creates the AssignmentProgress row (unique assignmentId+userId).
- * - Validates the transition is allowed (TODO→IN_PROGRESS, IN_PROGRESS→DONE).
- * - Updates status + timestamps + source fields.
- * - Appends one ActivityLog event (append-only, NFR-11).
- *
- * Returns `{ ok: true, progress }` on success or `{ ok: false, reason, status }`
- * on failure (404 for missing task, 409 for forbidden transition).
- */
-export async function applyTransition(params: {
+export interface TransitionInput {
   assignmentId: string;
   userId: string;
   action: TransitionAction;
-  source?: Source;
-}): Promise<TransitionOutcome> {
-  const source: Source = isSource(params.source) ? params.source : "WEB";
+  source: Source;
+}
 
-  // Verify the assignment exists.
+/**
+ * Execute a forward-only state transition for a student's assignment progress.
+ *
+ * - Rejects forbidden transitions (409 TransitionError).
+ * - Upserts the AssignmentProgress row (creates TODO row on first START).
+ * - Records `startedAt`/`startedSource` on START, `completedAt`/
+ *   `completedSource` on COMPLETE.
+ * - Appends exactly one ActivityLog row inside the same transaction.
+ *
+ * Returns the updated progress row.
+ */
+export async function transition(
+  input: TransitionInput,
+): Promise<TransitionResult> {
+  const { assignmentId, userId, action, source } = input;
+  const { from: expectedFrom, to: target } = TRANSITIONS[action];
+  const now = new Date();
+
+  // Verify the assignment exists (also gates against deleted assignments).
   const assignment = await prisma.assignment.findUnique({
-    where: { id: params.assignmentId },
-    select: { id: true, title: true },
+    where: { id: assignmentId },
+    select: { id: true },
   });
   if (!assignment) {
-    return { ok: false, reason: "Task not found", status: 404 };
+    throw new TransitionError(
+      "ASSIGNMENT_NOT_FOUND",
+      `Assignment ${assignmentId} not found`,
+      404,
+    );
   }
 
-  // Find or create the progress row (one per student per task — unique constraint).
-  let progress = await prisma.assignmentProgress.findUnique({
-    where: {
-      assignmentId_userId: {
-        assignmentId: params.assignmentId,
-        userId: params.userId,
-      },
-    },
-  });
-
-  if (!progress) {
-    progress = await prisma.assignmentProgress.create({
-      data: {
-        assignmentId: params.assignmentId,
-        userId: params.userId,
-        status: "TODO",
-      },
+  return prisma.$transaction(async (tx) => {
+    // Lock the progress row (or create a fresh TODO one on first contact).
+    const existing = await tx.assignmentProgress.findUnique({
+      where: { assignmentId_userId: { assignmentId, userId } },
     });
-  }
 
-  // Validate the transition (NFR-10: backend enforcement is mandatory).
-  const result = validateTransition(params.action, progress.status);
-  if (!result.ok) {
-    return { ok: false, reason: result.reason, status: 409 };
-  }
+    const current: ProgressStatus = existing?.status ?? "TODO";
 
-  const now = new Date();
-  const target = getTargetStatus(params.action);
+    // If the row doesn't exist yet, only START (TODO→IN_PROGRESS) is valid —
+    // COMPLETE on a non-existent row would mean TODO→DONE, which is forbidden.
+    const check = canTransition(current, target);
+    if (!check.ok) {
+      throw new TransitionError("FORBIDDEN_TRANSITION", check.reason, 409);
+    }
 
-  // Apply the transition — only this service writes to AssignmentProgress.
-  const updated = await prisma.assignmentProgress.update({
-    where: { id: progress.id },
-    data:
-      params.action === "START"
+    // Guard: the expected `from` must match — defends against a race where
+    // `current` was computed differently (e.g. row created mid-flight).
+    if (current !== expectedFrom) {
+      throw new TransitionError(
+        "FORBIDDEN_TRANSITION",
+        `Expected ${expectedFrom}, found ${current}`,
+        409,
+      );
+    }
+
+    const patch: Prisma.AssignmentProgressUpdateInput =
+      action === "START"
         ? { status: target, startedAt: now, startedSource: source }
-        : { status: target, completedAt: now, completedSource: source },
-  });
+        : { status: target, completedAt: now, completedSource: source };
 
-  // Append-only activity log (NFR-11).
-  await logActivity({
-    userId: params.userId,
-    assignmentId: params.assignmentId,
-    eventType: getEventType(params.action),
-    source,
-    metadata: { taskTitle: assignment.title },
-  });
+    let row;
+    if (existing) {
+      row = await tx.assignmentProgress.update({
+        where: { assignmentId_userId: { assignmentId, userId } },
+        data: patch,
+      });
+    } else {
+      row = await tx.assignmentProgress.create({
+        data: {
+          assignmentId,
+          userId,
+          status: target,
+          startedAt: action === "START" ? now : null,
+          startedSource: action === "START" ? source : null,
+          completedAt: action === "COMPLETE" ? now : null,
+          completedSource: action === "COMPLETE" ? source : null,
+        },
+      });
+    }
 
-  return {
-    ok: true,
-    progress: {
-      id: updated.id,
-      assignmentId: updated.assignmentId,
-      userId: updated.userId,
-      status: updated.status,
-      startedAt: updated.startedAt,
-      completedAt: updated.completedAt,
-      startedSource: updated.startedSource,
-      completedSource: updated.completedSource,
-    },
-  };
+    // Append exactly one immutable event row (§7.5.3) — same transaction.
+    await appendActivityLog(
+      {
+        userId,
+        assignmentId,
+        eventType: EVENT_FOR_ACTION[action],
+        source,
+        metadata: { status: target },
+      },
+      tx,
+    );
+
+    return {
+      progressId: row.id,
+      status: row.status,
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+    };
+  });
 }
